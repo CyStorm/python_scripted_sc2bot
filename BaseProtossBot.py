@@ -148,6 +148,10 @@ class BaseProtossBot(sc2.BotAI):
         return success
 
     def build_any_structure(self, building_id: UNITID, location):
+        if (building_id == UNITID.PYLON):
+            return self.build_pylon(location)
+        elif (building_id == UNITID.ASSIMILATOR):
+            return self.build_gas()
         success = False
         if (self.can_afford(building_id)):
             if (location):
