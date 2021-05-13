@@ -51,7 +51,7 @@ class BaseProtossBot(sc2.BotAI):
         next_gateway = await self.find_placement(UNITID.GATEWAY, near=self.nexuses.first.position)
         next_pylon = await self.find_placement(UNITID.COMMANDCENTER, near=self.nexuses.random.position)  # use CC for reasons
         next_expansion = await self.get_next_expansion()
-        # self.watch_gas_saturation()
+        self.watch_gas_saturation()
         if(self.build_order_complete):
             self.set_unit_groups()
             # can abosrb building placement into 1 place
@@ -147,11 +147,7 @@ class BaseProtossBot(sc2.BotAI):
             success = True
         return success
 
-    def build_any_structure(self, building_id: UNITID, location, afford_check=True):
-        if (building_id == UNITID.PYLON):
-            return self.build_pylon(location)
-        elif (building_id == UNITID.ASSIMILATOR):
-            return self.build_gas()
+    def build_any_structure(self, building_id: UNITID, location):
         success = False
         if (self.can_afford(building_id)):
             if (location):
