@@ -45,8 +45,6 @@ class BaseProtossBot(sc2.BotAI):
     async def on_step(self, iteration: int):
         '''built in function
         '''
-        print(self.build_order_step)
-        print(self.gas_buildings.amount)
         # self.build_order_complete = True    # skip initial build order, remove for normal operations
         next_gateway = await self.find_placement(UNITID.GATEWAY, near=self.nexuses.first.position)
         next_pylon = await self.find_placement(UNITID.COMMANDCENTER, near=self.nexuses.random.position)  # use CC for reasons
@@ -76,17 +74,30 @@ class BaseProtossBot(sc2.BotAI):
         self.nexuses = self.structures(UNITID.NEXUS)
 
     def do_build_order(self, **kwargs):
-
+        '''Do a pre defined build order, should prob re write
+        Should only contain code to execute (any) build order, but currently hard coded for 1
+        current does up to 22 pylon in 1 gate expand
+        '''
         max_steps = len(self.build_order)
         if (self.build_order_step == max_steps):
             self.build_order_complete = True
             print("build order done")
             return
 
+        # TODO this info should be part of the build order object? not here
+        if (self.build_order_step == 8):
+            self.probes_on_gas = 1
+        elif (self.build_order_step == 9):
+            self.probes_on_gas = 2
+        elif (self.build_order_step == 10):
+            self.probes_on_gas = 3
+        elif (self.build_order_step == 16):
+            self.probes_on_gas = 6
+
         current_step = self.build_order[self.build_order_step]
         if (current_step[0] == "b" or current_step[0] == "v"):
             # structures
-            # TODO better build order implimentation, mapping
+            # TODO better build order implimentation, mapping no all hard coded here
             structures = {
                 "bg": UNITID.GATEWAY,
                 "by": UNITID.CYBERNETICSCORE,
