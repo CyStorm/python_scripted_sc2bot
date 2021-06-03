@@ -13,15 +13,15 @@ from build_orders import one_gate_expand
 class BaseProtossBot(sc2.BotAI):
     def __init__(self):
         self.build_order_step = 0
-        self.build_order_stage = 2
+        self.build_order_stage = 0
         self.build_order = None
 
         self.main_army = None
         self.production = None
         self.warpgates = None
 
-        self.owned_minerals = None
-        self.owned_empty_geysers = None
+        self.owned_minerals = None          #minerals in all owned bases
+        self.owned_empty_geysers = None         #empty gases in all owned bases
 
         self.is_expanding = True
 
@@ -29,13 +29,15 @@ class BaseProtossBot(sc2.BotAI):
         # can do self.gas_buildings built in
 
     def initial_setup(self):
+        '''Sets control groups and set up internal variables
+        '''
         main_base_nexus = self.structures(UNITID.NEXUS).first
         self.newest_base = main_base_nexus
         self.owned_minerals = self.mineral_field.closer_than(distance=8, position=main_base_nexus.position)
         self.owned_empty_geysers = self.vespene_geyser.closer_than(distance=8, position=main_base_nexus.position)
 
     async def on_start(self):
-        '''built in function
+        '''Built in function, called before the first step
         '''
         self.initial_setup()
         self.set_unit_groups()
@@ -45,7 +47,7 @@ class BaseProtossBot(sc2.BotAI):
         self.build_order = one_gate_expand
 
     async def on_step(self, iteration: int):
-        '''built in function
+        '''Built in function, the main thing called for each iteration of the game
         '''
         # self.build_order_complete = True    # skip initial build order, remove for normal operations
         next_gateway = await self.find_placement(UNITID.GATEWAY, near=self.townhalls.first.position)
@@ -80,12 +82,13 @@ class BaseProtossBot(sc2.BotAI):
             self.train_unit(UNITID.STALKER)
 
     def set_unit_groups(self):
+        '''Set control groups
+        '''
         self.gateways = self.structures(UNITID.GATEWAY)
 
     def do_build_order(self, **kwargs):
         '''Do a pre defined build order, should prob re write
-        Should only contain code to execute (any) build order, but currently hard coded for 1
-        current does up to 22 pylon in 1 gate expand
+        Should only contain code to execute (any) build order
         '''
         max_steps = len(self.build_order)
         if (self.build_order_step == max_steps):
@@ -134,6 +137,8 @@ class BaseProtossBot(sc2.BotAI):
             self.build_order_step += 1
 
     def build_worker(self):
+        '''Make a probe from a nexus, afford check and idle check, with queue
+        '''
         success = False
         nexus = self.townhalls.idle
         if (nexus and self.can_afford(UNITID.PROBE)):
@@ -142,6 +147,8 @@ class BaseProtossBot(sc2.BotAI):
         return success
 
     def build_pylon(self, location):
+        '''Builds pylon, checks if we are withing 8 supply of cap and not already building one
+        '''
         success = False
         if (self.supply_used + 8 > self.supply_cap and not self.already_pending(UNITID.PYLON)):
             if (self.can_afford(UNITID.PYLON)):
@@ -153,6 +160,8 @@ class BaseProtossBot(sc2.BotAI):
         return success
 
     def build_gas(self):
+        '''Build gas on a geyser close to a owned base
+        '''
         success = False
         if (self.can_afford(UNITID.ASSIMILATOR) and self.owned_empty_geysers):
             gyser = self.owned_empty_geysers.pop(0)
@@ -164,6 +173,9 @@ class BaseProtossBot(sc2.BotAI):
         return success
 
     def build_any_structure(self, building_id: UNITID, location):
+        '''Build any structure, the pylon and gas will call its own methods
+        all structures are 3x3
+        '''
         if (building_id == UNITID.PYLON):
             return self.build_pylon(location)
         elif (building_id == UNITID.ASSIMILATOR):
@@ -178,7 +190,7 @@ class BaseProtossBot(sc2.BotAI):
         return success
 
     def watch_gas_saturation(self):
-        '''Assign probes to gas as the internal variable dictates
+        '''Handles the gas saturaion of gases by each building
         '''
         for assimilator in self.gas_buildings:
             # check each assimilator for over/underaturation
@@ -194,7 +206,7 @@ class BaseProtossBot(sc2.BotAI):
                 break
 
     def watch_mineral_saturation(self):
-        '''Optimize mineral saturaton, from oversaturation in bases, or non-optimal per patch saturation
+        '''Optimize mineral saturaton, from oversaturation in bases and iterate though each base
         '''
         if (self.townhalls.ready.amount == 1):
             return
@@ -224,6 +236,8 @@ class BaseProtossBot(sc2.BotAI):
         return success
 
     def expand(self, location):
+        '''Expands in the next location, need to pass in a location
+        '''
         success = False
         if (self.is_expanding and self.can_afford(UNITID.NEXUS)):
             if (location):
@@ -247,19 +261,21 @@ class BaseProtossBot(sc2.BotAI):
         return success
 
     def get_critical_tech(self):
+        '''For blink build only gets blink and warpgate
+        '''
         techs = [UPGRADEID.WARPGATERESEARCH, UPGRADEID.BLINKTECH]
         for tech in techs:
             self.research(tech)
 
     async def on_unit_created(self, unit: sc2.unit.Unit):
-        '''built in function
+        '''Built in function, called on each unit creation, structures not counted
         '''
         # if (unit.type_id == UNITID.PROBE):
         #     unit.gather(self.owned_minerals.closest_to(unit.position))
         pass
 
     async def on_building_construction_complete(self, unit: sc2.unit.Unit):
-        '''built in function
+        '''Built in functino, called on each structure finish construction
         '''
         if (unit.type_id == UNITID.NEXUS):
             new_minearls = self.mineral_field.closer_than(distance=8, position=unit.position)
