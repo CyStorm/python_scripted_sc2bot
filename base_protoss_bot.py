@@ -20,12 +20,15 @@ class BaseProtossBot(sc2.BotAI):
         self.production = None
         self.warpgates = None
 
-        self.owned_minerals = None          #minerals in all owned bases
-        self.owned_empty_geysers = None         #empty gases in all owned bases
+        self.owned_minerals = None          # minerals in all owned bases
+        self.owned_empty_geysers = None         # empty gases in all owned bases
 
         self.is_expanding = True
 
         self.has_warpgate = False
+        self.has_blink = False
+
+        self.stalkers = None
         # can do self.gas_buildings built in
 
     def initial_setup(self):
@@ -53,6 +56,7 @@ class BaseProtossBot(sc2.BotAI):
         next_gateway = await self.find_placement(UNITID.GATEWAY, near=self.townhalls.first.position)
         next_pylon = await self.find_placement(UNITID.COMMANDCENTER, near=self.townhalls.random.position)  # use CC for reasons
         next_expansion = await self.get_next_expansion()
+        warpin_location = await self.find_warpin_location()
 
         self.set_unit_groups()
         if(self.build_order_stage == 2):
@@ -60,13 +64,20 @@ class BaseProtossBot(sc2.BotAI):
             # can abosrb building placement into 1 place
             self.build_pylon(location=next_pylon)
             self.expand(location=next_expansion)
+            self.train_unit(UNITID.STALKER, location=warpin_location)
             # self.do_chronoboost(self.townhalls.first)
             # self.build_any_structure(UNITID.GATEWAY, location=next_gateway)
             self.build_gas()
-            self.build_worker()
+            if (self.workers.amount < 66):
+                self.build_worker()
             if (iteration % 25 == 0):
                 self.watch_gas_saturation()
                 self.watch_mineral_saturation()
+
+            if (self.stalkers.amount > 20):
+                for stalker in self.stalkers:
+                    stalker.attack(self.enemy_start_locations[0])
+
         elif (self.build_order_stage == 0):
             self.do_build_order(natural_location=next_expansion, be=next_pylon, building_location=next_gateway)
         elif (self.build_order_stage == 1):
@@ -74,17 +85,25 @@ class BaseProtossBot(sc2.BotAI):
             self.watch_mineral_saturation()
             self.watch_gas_saturation()
             self.get_critical_tech()
+            if ((not self.has_blink) and self.already_pending_upgrade(UPGRADEID.BLINKTECH) > 0):
+                self.do_chronoboost(self.structures(UNITID.TWILIGHTCOUNCIL).first)
             self.build_pylon(location=next_pylon)
             if (self.workers.amount < 45):
                 self.build_worker()
             if (not self.structures(UNITID.TWILIGHTCOUNCIL)):
                 self.build_any_structure(UNITID.TWILIGHTCOUNCIL, next_gateway)
-            self.train_unit(UNITID.STALKER)
+            self.train_unit(UNITID.STALKER, location=warpin_location)
+            if (self.structures(UNITID.GATEWAY).amount + self.warp_gate_count < 6):
+                self.build_any_structure(UNITID.GATEWAY, next_gateway)
+            else:
+                self.build_order_stage = 2
 
     def set_unit_groups(self):
         '''Set control groups
         '''
         self.gateways = self.structures(UNITID.GATEWAY)
+        self.warpgates = self.structures(UNITID.WARPGATE)
+        self.stalkers = self.units(UNITID.STALKER)
 
     def do_build_order(self, **kwargs):
         '''Do a pre defined build order, should prob re write
@@ -248,17 +267,30 @@ class BaseProtossBot(sc2.BotAI):
                 success = True
         return success
 
-    def train_unit(self, unit_id: UNITID, amount=1):
+    async def find_warpin_location(self):
+        if (not self.has_warpgate):
+            return None
+        pylon = self.structures(UNITID.PYLON).closest_to(self.enemy_start_locations[0])
+        location = await self.find_placement(UNITID.PYLON, near=pylon.position, max_distance=8)
+        return location
+
+    def train_unit(self, unit_id: UNITID, amount=1, location=None):
         '''TODO need to handle warpgate and robo/stargate units
         '''
         success = False
         if (self.tech_requirement_progress(unit_id) < 1):
             return success
-        gateway = self.gateways.idle
-        if (gateway and self.can_afford(unit_id) and self.can_feed(unit_id)):
-            gateway.random.train(unit_id)
-            success = True
-        return success
+        if (self.has_warpgate):
+            warpgate = self.warpgates.idle
+            if (warpgate and self.can_afford(unit_id) and self.can_feed(unit_id)):
+                warpgate.random.warp_in(unit_id, location)
+                success = True
+        else:
+            gateway = self.gateways.idle
+            if (gateway and self.can_afford(unit_id) and self.can_feed(unit_id)):
+                gateway.random.train(unit_id)
+                success = True
+            return success
 
     def get_critical_tech(self):
         '''For blink build only gets blink and warpgate
@@ -292,6 +324,14 @@ class BaseProtossBot(sc2.BotAI):
         '''
         # if (unit_tag in self.townhalls.tags):
         print("unit {} destroyed".format(unit_tag))
+
+    async def on_upgrade_complete(self, upgrade: UPGRADEID):
+        """built in function
+        """
+        if (upgrade == UPGRADEID.WARPGATERESEARCH):
+            self.has_warpgate = True
+        elif (upgrade == UPGRADEID.BLINKTECH):
+            self.has_blink = True
 
 def main():
     run_game(maps.get("AscensiontoAiurLE"), [Bot(Race.Protoss, BaseProtossBot()), Computer(Race.Terran, Difficulty.Easy)], realtime=False)
