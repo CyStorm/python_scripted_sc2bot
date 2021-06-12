@@ -299,6 +299,16 @@ class BaseProtossBot(sc2.BotAI):
         for tech in techs:
             self.research(tech)
 
+    def do_micro(self):
+        '''Micros the army, clean up some code in on_step to put in here
+        '''
+        pass
+
+    def do_macro(self):
+        '''Expands and does buildings, clean up scattered code
+        '''
+        pass
+
     async def on_unit_created(self, unit: sc2.unit.Unit):
         '''Built in function, called on each unit creation, structures not counted
         '''
@@ -332,6 +342,12 @@ class BaseProtossBot(sc2.BotAI):
             self.has_warpgate = True
         elif (upgrade == UPGRADEID.BLINKTECH):
             self.has_blink = True
+
+    async def on_unit_took_damage(self, unit: UNITID, amount_damage_taken: float):
+        """built in function
+        basically use this to blink back and check of has sheilds
+        """
+        pass
 
 def main():
     run_game(maps.get("AscensiontoAiurLE"), [Bot(Race.Protoss, BaseProtossBot()), Computer(Race.Terran, Difficulty.Easy)], realtime=False)
