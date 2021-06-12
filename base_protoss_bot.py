@@ -53,8 +53,8 @@ class BaseProtossBot(sc2.BotAI):
         '''Built in function, the main thing called for each iteration of the game
         '''
         # self.build_order_complete = True    # skip initial build order, remove for normal operations
-        next_gateway = await self.find_placement(UNITID.GATEWAY, near=self.townhalls.first.position)
-        next_pylon = await self.find_placement(UNITID.COMMANDCENTER, near=self.townhalls.random.position)  # use CC for reasons
+        next_gateway = await self.find_placement(UNITID.GATEWAY, near=self.townhalls.first.position, placement_step=6)
+        next_pylon = await self.find_placement(UNITID.COMMANDCENTER, near=self.townhalls.random.position, placement_step=4)  # use CC for reasons
         next_expansion = await self.get_next_expansion()
         warpin_location = await self.find_warpin_location()
 
@@ -74,7 +74,7 @@ class BaseProtossBot(sc2.BotAI):
                 self.watch_gas_saturation()
                 self.watch_mineral_saturation()
 
-            if (self.stalkers.amount > 20):
+            if (self.stalkers.amount > 10):
                 for stalker in self.stalkers:
                     stalker.attack(self.enemy_start_locations[0])
 
@@ -312,8 +312,6 @@ class BaseProtossBot(sc2.BotAI):
     async def on_unit_created(self, unit: sc2.unit.Unit):
         '''Built in function, called on each unit creation, structures not counted
         '''
-        # if (unit.type_id == UNITID.PROBE):
-        #     unit.gather(self.owned_minerals.closest_to(unit.position))
         pass
 
     async def on_building_construction_complete(self, unit: sc2.unit.Unit):
@@ -343,14 +341,21 @@ class BaseProtossBot(sc2.BotAI):
         elif (upgrade == UPGRADEID.BLINKTECH):
             self.has_blink = True
 
-    async def on_unit_took_damage(self, unit: UNITID, amount_damage_taken: float):
+    async def on_unit_took_damage(self, unit: sc2.unit.Unit, amount_damage_taken: float):
         """built in function
         basically use this to blink back and check of has sheilds
         """
-        pass
+        if (unit.type_id == UNITID.STALKER):
+            if (unit.shield_percentage < 0.5):
+                enemy_unit = self.enemy_units.closest_to(unit).position
+                if (enemy_unit):
+                    target_postion = unit.position.towards(enemy_unit, -5)
+                else:
+                    target_postion = unit.position.towards(self.start_location, 5)
+                unit(ABILITYID.EFFECT_BLINK, target_postion)
 
 def main():
-    run_game(maps.get("AscensiontoAiurLE"), [Bot(Race.Protoss, BaseProtossBot()), Computer(Race.Terran, Difficulty.Easy)], realtime=False)
+    run_game(maps.get("AscensiontoAiurLE"), [Bot(Race.Protoss, BaseProtossBot()), Computer(Race.Terran, Difficulty.Hard)], realtime=False)
     # run_game(maps.get("AscensiontoAiurLE"), [Human(Race.Terran), Bot(Race.Protoss, BaseProtossBot())], realtime=True)
 
 if __name__ == "__main__":
