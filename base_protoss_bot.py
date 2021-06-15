@@ -345,8 +345,9 @@ class BaseProtossBot(sc2.BotAI):
         """built in function
         basically use this to blink back and check of has sheilds
         """
+        # blink logic TODO add kiting logic
         if (unit.type_id == UNITID.STALKER):
-            if (unit.shield_percentage < 0.5):
+            if (unit.shield_percentage < 0.15):
                 enemy_unit = self.enemy_units.closest_to(unit).position
                 if (enemy_unit):
                     target_postion = unit.position.towards(enemy_unit, -5)
@@ -355,7 +356,7 @@ class BaseProtossBot(sc2.BotAI):
                 unit(ABILITYID.EFFECT_BLINK, target_postion)
 
 def main():
-    run_game(maps.get("AscensiontoAiurLE"), [Bot(Race.Protoss, BaseProtossBot()), Computer(Race.Terran, Difficulty.Hard)], realtime=False)
+    run_game(maps.get("AscensiontoAiurLE"), [Bot(Race.Protoss, BaseProtossBot()), Computer(Race.Terran, Difficulty.VeryHard)], realtime=False)
     # run_game(maps.get("AscensiontoAiurLE"), [Human(Race.Terran), Bot(Race.Protoss, BaseProtossBot())], realtime=True)
 
 if __name__ == "__main__":
