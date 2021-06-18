@@ -271,7 +271,7 @@ class BaseProtossBot(sc2.BotAI):
         if (not self.has_warpgate):
             return None
         pylon = self.structures(UNITID.PYLON).closest_to(self.enemy_start_locations[0])
-        location = await self.find_placement(UNITID.PYLON, near=pylon.position, max_distance=8)
+        location = await self.find_placement(UNITID.SENSORTOWER, near=pylon.position, max_distance=7)
         return location
 
     def train_unit(self, unit_id: UNITID, amount=1, location=None):
