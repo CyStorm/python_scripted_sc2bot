@@ -268,6 +268,8 @@ class BaseProtossBot(sc2.BotAI):
         return success
 
     async def find_warpin_location(self):
+        '''Finds a 1x1 space near the closest pylon to enemy to warp in units
+        '''
         if (not self.has_warpgate):
             return None
         pylon = self.structures(UNITID.PYLON).closest_to(self.enemy_start_locations[0])
@@ -343,7 +345,7 @@ class BaseProtossBot(sc2.BotAI):
 
     async def on_unit_took_damage(self, unit: sc2.unit.Unit, amount_damage_taken: float):
         """built in function
-        basically use this to blink back and check of has sheilds
+        Currently blinks back low hp stalkers
         """
         # blink logic TODO add kiting logic
         if (unit.type_id == UNITID.STALKER):
@@ -356,7 +358,9 @@ class BaseProtossBot(sc2.BotAI):
                 unit(ABILITYID.EFFECT_BLINK, target_postion)
 
 def main():
+    # For bot vs built in computer
     run_game(maps.get("AscensiontoAiurLE"), [Bot(Race.Protoss, BaseProtossBot()), Computer(Race.Terran, Difficulty.VeryHard)], realtime=False)
+    # For bot vs human
     # run_game(maps.get("AscensiontoAiurLE"), [Human(Race.Terran), Bot(Race.Protoss, BaseProtossBot())], realtime=True)
 
 if __name__ == "__main__":
