@@ -8,9 +8,10 @@ from sc2.ids.upgrade_id import UpgradeId as UPGRADEID
 
 from loguru import logger
 
+from economy_micro import EconomyMicro
 from build_orders import one_gate_expand
 
-class BaseProtossBot(sc2.BotAI):
+class BaseProtossBot(sc2.BotAI, EconomyMicro):
     def __init__(self):
         self.build_order_step = 0
         self.build_order_stage = 0
@@ -62,11 +63,9 @@ class BaseProtossBot(sc2.BotAI):
         if(self.build_order_stage == 2):
             self.is_expanding = self.townhalls.amount < 3
             # can abosrb building placement into 1 place
-            self.build_pylon(location=next_pylon)
+            await self.build_pylon(location=next_pylon)
             self.expand(location=next_expansion)
             self.train_unit(UNITID.STALKER, location=warpin_location)
-            # self.do_chronoboost(self.townhalls.first)
-            # self.build_any_structure(UNITID.GATEWAY, location=next_gateway)
             self.build_gas()
             self.do_micro()
             await self.do_macro()
@@ -81,7 +80,7 @@ class BaseProtossBot(sc2.BotAI):
                     stalker.attack(self.enemy_start_locations[0])
 
         elif (self.build_order_stage == 0):
-            self.do_build_order(natural_location=next_expansion, be=next_pylon, building_location=next_gateway)
+            await self.do_build_order(natural_location=next_expansion, be=next_pylon, building_location=next_gateway)
         elif (self.build_order_stage == 1):
             # if (iteration % 25 == 0):
             self.watch_mineral_saturation()
@@ -89,14 +88,14 @@ class BaseProtossBot(sc2.BotAI):
             self.get_critical_tech()
             if ((not self.has_blink) and self.already_pending_upgrade(UPGRADEID.BLINKTECH) > 0):
                 self.do_chronoboost(self.structures(UNITID.TWILIGHTCOUNCIL).first)
-            self.build_pylon(location=next_pylon)
+            await self.build_pylon(location=next_pylon)
             if (self.workers.amount < 45):
                 self.build_worker()
             if (not self.structures(UNITID.TWILIGHTCOUNCIL)):
-                self.build_any_structure(UNITID.TWILIGHTCOUNCIL, next_gateway)
+                await self.build_any_structure(UNITID.TWILIGHTCOUNCIL, next_gateway)
             self.train_unit(UNITID.STALKER, location=warpin_location)
             if (self.structures(UNITID.GATEWAY).amount + self.warp_gate_count < 6):
-                self.build_any_structure(UNITID.GATEWAY, next_gateway)
+                await self.build_any_structure(UNITID.GATEWAY, next_gateway)
             else:
                 self.build_order_stage = 2
 
@@ -107,7 +106,7 @@ class BaseProtossBot(sc2.BotAI):
         self.warpgates = self.structures(UNITID.WARPGATE)
         self.stalkers = self.units(UNITID.STALKER)
 
-    def do_build_order(self, **kwargs):
+    async def do_build_order(self, **kwargs):
         '''Do a pre defined build order, should prob re write
         Should only contain code to execute (any) build order
         '''
@@ -133,7 +132,7 @@ class BaseProtossBot(sc2.BotAI):
             location = structures.get(self.build_order_step, None)
             if (not location):
                 location = kwargs.get(current_step, kwargs["building_location"])
-            result = self.build_any_structure(structures[current_step], location)
+            result = await self.build_any_structure(structures[current_step], location)
         elif (current_step[0] == "a"):
             # ability cast
             if (current_step[1] == "c"):
@@ -167,7 +166,7 @@ class BaseProtossBot(sc2.BotAI):
             success = True
         return success
 
-    def build_pylon(self, location):
+    async def build_pylon(self, location):
         '''Builds pylon, checks if we are withing 8 supply of cap and not already building one
         '''
         success = False
@@ -199,18 +198,26 @@ class BaseProtossBot(sc2.BotAI):
                 success = False
         return success
 
-    def build_any_structure(self, building_id: UNITID, location):
+    async def build_any_structure(self, building_id: UNITID, location_override=None):
         '''Build any structure, the pylon and gas will call its own methods
         all structures are 3x3
         '''
+        # hooks to other methods, will consolidate later
         if (building_id == UNITID.PYLON):
-            return self.build_pylon(location)
+            return await self.build_pylon(location_override)
         elif (building_id == UNITID.ASSIMILATOR):
             return self.build_gas()
+        elif (building_id == UNITID.NEXUS):
+            return self.expand()
+
         success = False
-        if (self.can_afford(building_id)):
-            if (location):
-                worker = self.select_build_worker(location)
+        if (location_override):
+            location = location_override
+        else:
+            location = await self.find_placement(UNITID.GATEWAY, near=self.townhalls.first.position, placement_step=6)
+        if (location):
+            worker = self.select_build_worker(location)
+            if (worker and self.can_afford(building_id)):
                 try:
                     worker.build(building_id, location)
                     worker.gather(self.owned_minerals.closest_to(worker.position), queue=True)
@@ -219,38 +226,38 @@ class BaseProtossBot(sc2.BotAI):
                     success = False
         return success
 
-    def watch_gas_saturation(self):
-        '''Handles the gas saturaion of gases by each building
-        '''
-        for assimilator in self.gas_buildings:
-            # check each assimilator for over/underaturation
-            # case of want full saturation
-            diff = assimilator.assigned_harvesters - assimilator.ideal_harvesters
-            if (diff > 0):
-                worker = self.workers.closest_to(assimilator.position)
-                worker.gather(self.owned_minerals.closest_to(worker.position))
-                break
-            elif (diff < 0):
-                worker = self.workers.filter(lambda worker: worker.is_carrying_minerals).closest_to(assimilator.position)
-                worker.gather(assimilator)
-                break
+    # def watch_gas_saturation(self):
+    #     '''Handles the gas saturaion of gases by each building
+    #     '''
+    #     for assimilator in self.gas_buildings:
+    #         # check each assimilator for over/underaturation
+    #         # case of want full saturation
+    #         diff = assimilator.assigned_harvesters - assimilator.ideal_harvesters
+    #         if (diff > 0):
+    #             worker = self.workers.closest_to(assimilator.position)
+    #             worker.gather(self.owned_minerals.closest_to(worker.position))
+    #             break
+    #         elif (diff < 0):
+    #             worker = self.workers.filter(lambda worker: worker.is_carrying_minerals).closest_to(assimilator.position)
+    #             worker.gather(assimilator)
+    #             break
 
-    def watch_mineral_saturation(self):
-        '''Optimize mineral saturaton, from oversaturation in bases and iterate though each base
-        '''
-        if (self.townhalls.ready.amount == 1):
-            return
-        unfilled_bases = self.townhalls.ready.filter(lambda base: base.assigned_harvesters < base.ideal_harvesters)
-        oversaturated_bases = self.townhalls.ready.filter(lambda base: base.assigned_harvesters > base.ideal_harvesters)
-        if (unfilled_bases):
-            for nexus in oversaturated_bases:
-                diff = nexus.assigned_harvesters - nexus.ideal_harvesters
-                if (diff > 0):
-                    nexus(ABILITYID.RALLY_NEXUS, self.owned_minerals.closest_to(unfilled_bases.random.position))
-                    extra_workers = self.workers.closer_than(8, nexus.position).filter(lambda worker: worker.is_carrying_minerals).random_group_of(diff)
-                    mineral = self.owned_minerals.closest_to(unfilled_bases.random.position)
-                    for worker in extra_workers:
-                        worker.gather(mineral, queue=True)
+    # def watch_mineral_saturation(self):
+    #     '''Optimize mineral saturaton, from oversaturation in bases and iterate though each base
+    #     '''
+    #     if (self.townhalls.ready.amount == 1):
+    #         return
+    #     unfilled_bases = self.townhalls.ready.filter(lambda base: base.assigned_harvesters < base.ideal_harvesters)
+    #     oversaturated_bases = self.townhalls.ready.filter(lambda base: base.assigned_harvesters > base.ideal_harvesters)
+    #     if (unfilled_bases):
+    #         for nexus in oversaturated_bases:
+    #             diff = nexus.assigned_harvesters - nexus.ideal_harvesters
+    #             if (diff > 0):
+    #                 nexus(ABILITYID.RALLY_NEXUS, self.owned_minerals.closest_to(unfilled_bases.random.position))
+    #                 extra_workers = self.workers.closer_than(8, nexus.position).filter(lambda worker: worker.is_carrying_minerals).random_group_of(diff)
+    #                 mineral = self.owned_minerals.closest_to(unfilled_bases.random.position)
+    #                 for worker in extra_workers:
+    #                     worker.gather(mineral, queue=True)
 
     def do_chronoboost(self, target_structure: sc2.unit.Unit):
         '''Uses chronoboost on target structure
@@ -324,9 +331,9 @@ class BaseProtossBot(sc2.BotAI):
     async def do_macro(self):
         '''Expands and does buildings, clean up scattered code
         '''
-        if (self.warp_gate_count < (self.townhalls.amount * 4)):
+        if ((self.structures(UNITID.GATEWAY).amount + self.warp_gate_count) < (self.townhalls.amount * 4)):
             next_gateway = await self.find_placement(UNITID.GATEWAY, near=self.townhalls.first.position, placement_step=6)
-            self.build_any_structure(UNITID.GATEWAY, next_gateway)
+            await self.build_any_structure(UNITID.GATEWAY, next_gateway)
 
     async def on_unit_created(self, unit: sc2.unit.Unit):
         '''Built in function, called on each unit creation, structures not counted
@@ -379,7 +386,7 @@ class BaseProtossBot(sc2.BotAI):
 
 def main():
     # For bot vs built in computer
-    run_game(maps.get("AscensiontoAiurLE"), [Bot(Race.Protoss, BaseProtossBot()), Computer(Race.Protoss, Difficulty.VeryHard)], realtime=False)
+    run_game(maps.get("AscensiontoAiurLE"), [Bot(Race.Protoss, BaseProtossBot()), Computer(Race.Terran, Difficulty.VeryHard)], realtime=False)
     # For bot vs human
     # run_game(maps.get("AscensiontoAiurLE"), [Human(Race.Terran), Bot(Race.Protoss, BaseProtossBot())], realtime=True)
 
