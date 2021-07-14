@@ -68,13 +68,15 @@ class BaseProtossBot(sc2.BotAI):
             # self.do_chronoboost(self.townhalls.first)
             # self.build_any_structure(UNITID.GATEWAY, location=next_gateway)
             self.build_gas()
+            self.do_micro()
+            await self.do_macro()
             if (self.workers.amount < 66):
                 self.build_worker()
             if (iteration % 25 == 0):
                 self.watch_gas_saturation()
                 self.watch_mineral_saturation()
 
-            if (self.stalkers.amount > 10):
+            if (self.stalkers.amount > 25):
                 for stalker in self.stalkers:
                     stalker.attack(self.enemy_start_locations[0])
 
@@ -173,9 +175,12 @@ class BaseProtossBot(sc2.BotAI):
             if (self.can_afford(UNITID.PYLON)):
                 if (location):
                     worker = self.select_build_worker(location)
-                    worker.build(UNITID.PYLON, location)
-                    worker.gather(self.owned_minerals.closest_to(worker.position), queue=True)
-                    success = True
+                    try:
+                        worker.build(UNITID.PYLON, location)
+                        worker.gather(self.owned_minerals.closest_to(worker.position), queue=True)
+                        success = True
+                    except AttributeError:
+                        success = False
         return success
 
     def build_gas(self):
@@ -186,9 +191,12 @@ class BaseProtossBot(sc2.BotAI):
             gyser = self.owned_empty_geysers.pop(0)
             # need to update the owned_empty_geysers if one was destroyed
             build_probe = self.select_build_worker(gyser)
-            build_probe.build(UNITID.ASSIMILATOR, gyser)
-            build_probe.gather(self.owned_minerals.closest_to(build_probe.position), queue=True)
-            success = True
+            try:
+                build_probe.build(UNITID.ASSIMILATOR, gyser)
+                build_probe.gather(self.owned_minerals.closest_to(build_probe.position), queue=True)
+                success = True
+            except AttributeError:
+                success = False
         return success
 
     def build_any_structure(self, building_id: UNITID, location):
@@ -203,9 +211,12 @@ class BaseProtossBot(sc2.BotAI):
         if (self.can_afford(building_id)):
             if (location):
                 worker = self.select_build_worker(location)
-                worker.build(building_id, location)
-                worker.gather(self.owned_minerals.closest_to(worker.position), queue=True)
-                success = True
+                try:
+                    worker.build(building_id, location)
+                    worker.gather(self.owned_minerals.closest_to(worker.position), queue=True)
+                    success = True
+                except AttributeError:
+                    success = False
         return success
 
     def watch_gas_saturation(self):
@@ -261,10 +272,13 @@ class BaseProtossBot(sc2.BotAI):
         if (self.is_expanding and self.can_afford(UNITID.NEXUS)):
             if (location):
                 worker = self.select_build_worker(location)
-                worker.build(UNITID.NEXUS, location)
-                worker.gather(self.owned_minerals.closest_to(worker.position), queue=True)
-                self.is_expanding = False
-                success = True
+                try:
+                    worker.build(UNITID.NEXUS, location)
+                    worker.gather(self.owned_minerals.closest_to(worker.position), queue=True)
+                    self.is_expanding = False
+                    success = True
+                except AttributeError:
+                    success = False
         return success
 
     async def find_warpin_location(self):
@@ -277,16 +291,17 @@ class BaseProtossBot(sc2.BotAI):
         return location
 
     def train_unit(self, unit_id: UNITID, amount=1, location=None):
-        '''TODO need to handle warpgate and robo/stargate units
+        ''' Currently only does gateway and warpgate
         '''
         success = False
         if (self.tech_requirement_progress(unit_id) < 1):
             return success
         if (self.has_warpgate):
-            warpgate = self.warpgates.idle
-            if (warpgate and self.can_afford(unit_id) and self.can_feed(unit_id)):
-                warpgate.random.warp_in(unit_id, location)
-                success = True
+            gates = self.warpgates.idle
+            for warpgate in gates:
+                if (self.can_afford(unit_id) and self.can_feed(unit_id)):
+                    warpgate.warp_in(unit_id, location)
+                    success = True
         else:
             gateway = self.gateways.idle
             if (gateway and self.can_afford(unit_id) and self.can_feed(unit_id)):
@@ -306,15 +321,19 @@ class BaseProtossBot(sc2.BotAI):
         '''
         pass
 
-    def do_macro(self):
+    async def do_macro(self):
         '''Expands and does buildings, clean up scattered code
         '''
-        pass
+        if (self.warp_gate_count < (self.townhalls.amount * 4)):
+            next_gateway = await self.find_placement(UNITID.GATEWAY, near=self.townhalls.first.position, placement_step=6)
+            self.build_any_structure(UNITID.GATEWAY, next_gateway)
 
     async def on_unit_created(self, unit: sc2.unit.Unit):
         '''Built in function, called on each unit creation, structures not counted
         '''
-        pass
+        if (unit.type_id == UNITID.STALKER):
+            gather_location = self.newest_base.position.towards(self.enemy_start_locations[0], 10)
+            unit.smart(gather_location)
 
     async def on_building_construction_complete(self, unit: sc2.unit.Unit):
         '''Built in functino, called on each structure finish construction
@@ -324,6 +343,7 @@ class BaseProtossBot(sc2.BotAI):
             self.owned_minerals += new_minearls
             new_gases = self.vespene_geyser.closer_than(distance=8, position=unit.position)
             self.owned_empty_geysers += new_gases
+            self.newest_base = unit
             unit(ABILITYID.RALLY_NEXUS, self.owned_minerals.closest_to(unit.position))
         print("done building {}".format(unit))
 
@@ -359,7 +379,7 @@ class BaseProtossBot(sc2.BotAI):
 
 def main():
     # For bot vs built in computer
-    run_game(maps.get("AscensiontoAiurLE"), [Bot(Race.Protoss, BaseProtossBot()), Computer(Race.Terran, Difficulty.VeryHard)], realtime=False)
+    run_game(maps.get("AscensiontoAiurLE"), [Bot(Race.Protoss, BaseProtossBot()), Computer(Race.Protoss, Difficulty.VeryHard)], realtime=False)
     # For bot vs human
     # run_game(maps.get("AscensiontoAiurLE"), [Human(Race.Terran), Bot(Race.Protoss, BaseProtossBot())], realtime=True)
 
