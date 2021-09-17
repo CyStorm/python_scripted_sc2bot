@@ -75,7 +75,7 @@ class BaseProtossBot(sc2.BotAI, EconomyMicro):
             self.build_gas()
             self.do_micro()
             await self.do_macro()
-            if (self.workers.amount < 66):
+            if (self.workers.amount < 66 and self.workers.amount < self.townhalls.ready.amount * 22):
                 self.build_worker()
             if (iteration % 25 == 0):
                 self.watch_gas_saturation()
@@ -95,7 +95,7 @@ class BaseProtossBot(sc2.BotAI, EconomyMicro):
             if ((not self.has_blink) and self.already_pending_upgrade(UPGRADEID.BLINKTECH) > 0):
                 self.do_chronoboost(self.structures(UNITID.TWILIGHTCOUNCIL).first)
             await self.build_pylon(location=next_pylon)
-            if (self.workers.amount < 45):
+            if (self.workers.amount < 45 and self.workers.amount < self.townhalls.ready.amount * 22):
                 self.build_worker()
             if (not self.structures(UNITID.TWILIGHTCOUNCIL)):
                 await self.build_any_structure(UNITID.TWILIGHTCOUNCIL, next_gateway)
@@ -364,7 +364,7 @@ class BaseProtossBot(sc2.BotAI, EconomyMicro):
 
 def main():
     # For bot vs built in computer
-    run_game(maps.get("AscensiontoAiurLE"), [Bot(Race.Protoss, BaseProtossBot()), Computer(Race.Terran, Difficulty.VeryHard)], realtime=False)
+    run_game(maps.get("AscensiontoAiurLE"), [Bot(Race.Protoss, BaseProtossBot()), Computer(Race.Protoss, Difficulty.VeryHard)], realtime=False)
     # For bot vs human
     # run_game(maps.get("AscensiontoAiurLE"), [Human(Race.Terran), Bot(Race.Protoss, BaseProtossBot())], realtime=True)
 
