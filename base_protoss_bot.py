@@ -28,8 +28,10 @@ class BaseProtossBot(sc2.BotAI, EconomyMicro):
 
         self.has_warpgate = False
         self.has_blink = False
+        self.has_charge = False
 
         self.stalkers = None
+        self.all_army = None
         # can do self.gas_buildings built in
 
     def initial_setup(self):
@@ -61,11 +63,15 @@ class BaseProtossBot(sc2.BotAI, EconomyMicro):
 
         self.set_unit_groups()
         if(self.build_order_stage == 2):
+            self.get_critical_tech()
             self.is_expanding = self.townhalls.amount < 3
             # can abosrb building placement into 1 place
             await self.build_pylon(location=next_pylon)
             self.expand(location=next_expansion)
-            self.train_unit(UNITID.STALKER, location=warpin_location)
+            if (self.stalkers.amount > 16 and self.has_charge):
+                self.train_unit(UNITID.ZEALOT, location=warpin_location)
+            else:
+                self.train_unit(UNITID.STALKER, location=warpin_location)
             self.build_gas()
             self.do_micro()
             await self.do_macro()
@@ -75,9 +81,9 @@ class BaseProtossBot(sc2.BotAI, EconomyMicro):
                 self.watch_gas_saturation()
                 self.watch_mineral_saturation()
 
-            if (self.stalkers.amount > 25):
-                for stalker in self.stalkers:
-                    stalker.attack(self.enemy_start_locations[0])
+            if (self.all_army.amount > 30):
+                for unit in self.all_army:
+                    unit.attack(self.enemy_start_locations[0])
 
         elif (self.build_order_stage == 0):
             await self.do_build_order(natural_location=next_expansion, be=next_pylon, building_location=next_gateway)
@@ -105,6 +111,7 @@ class BaseProtossBot(sc2.BotAI, EconomyMicro):
         self.gateways = self.structures(UNITID.GATEWAY)
         self.warpgates = self.structures(UNITID.WARPGATE)
         self.stalkers = self.units(UNITID.STALKER)
+        self.all_army = self.stalkers + self.units(UNITID.ZEALOT)
 
     async def do_build_order(self, **kwargs):
         '''Do a pre defined build order, should prob re write
@@ -286,7 +293,7 @@ class BaseProtossBot(sc2.BotAI, EconomyMicro):
     def get_critical_tech(self):
         '''For blink build only gets blink and warpgate
         '''
-        techs = [UPGRADEID.WARPGATERESEARCH, UPGRADEID.BLINKTECH]
+        techs = [UPGRADEID.WARPGATERESEARCH, UPGRADEID.BLINKTECH, UPGRADEID.CHARGE]
         for tech in techs:
             self.research(tech)
 
@@ -294,6 +301,8 @@ class BaseProtossBot(sc2.BotAI, EconomyMicro):
         '''Micros the army, clean up some code in on_step to put in here
         '''
         pass
+        # for unit in self.all_army:
+        #     unit.move(self.game_info.map_center)
 
     async def do_macro(self):
         '''Expands and does buildings, clean up scattered code
@@ -305,7 +314,7 @@ class BaseProtossBot(sc2.BotAI, EconomyMicro):
     async def on_unit_created(self, unit: sc2.unit.Unit):
         '''Built in function, called on each unit creation, structures not counted
         '''
-        if (unit.type_id == UNITID.STALKER):
+        if (unit.type_id == UNITID.STALKER or unit.type_id == UNITID.ZEALOT):
             gather_location = self.newest_base.position.towards(self.enemy_start_locations[0], 10)
             unit.smart(gather_location)
 
@@ -336,6 +345,8 @@ class BaseProtossBot(sc2.BotAI, EconomyMicro):
             self.has_warpgate = True
         elif (upgrade == UPGRADEID.BLINKTECH):
             self.has_blink = True
+        elif (upgrade == UPGRADEID.CHARGE):
+            self.has_charge = True
 
     async def on_unit_took_damage(self, unit: sc2.unit.Unit, amount_damage_taken: float):
         """built in function
