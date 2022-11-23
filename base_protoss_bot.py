@@ -1,17 +1,19 @@
 import sc2
-from sc2 import run_game, maps, Race, Difficulty
+from sc2.bot_ai import BotAI
+from sc2.main import run_game
+from sc2 import maps
+from sc2.data import Race, Difficulty
 from sc2.player import Bot, Computer, Human
 from sc2.ids.unit_typeid import UnitTypeId as UNITID
 from sc2.ids.ability_id import AbilityId as ABILITYID
 from sc2.ids.buff_id import BuffId as BUFFID
 from sc2.ids.upgrade_id import UpgradeId as UPGRADEID
 
-from loguru import logger
-
+from typing import List
 from economy_micro import EconomyMicro
 from build_orders import one_gate_expand
 
-class BaseProtossBot(sc2.BotAI, EconomyMicro):
+class BaseProtossBot(BotAI, EconomyMicro):
     def __init__(self):
         self.build_order_step = 0
         self.build_order_stage = 0
@@ -127,14 +129,15 @@ class BaseProtossBot(sc2.BotAI, EconomyMicro):
         if (current_step[0] == "b" or current_step[0] == "v"):
             # structures
             # TODO better build order implimentation, mapping no all hard coded here
+            buildings = [x for x in self.main_base_ramp.protoss_wall_buildings]
             structures = {
                 "bg": UNITID.GATEWAY,
                 "by": UNITID.CYBERNETICSCORE,
                 "be": UNITID.PYLON,
                 "ba": UNITID.ASSIMILATOR,
                 2: self.main_base_ramp.protoss_wall_pylon,
-                5: self.main_base_ramp.protoss_wall_buildings[1],
-                13: self.main_base_ramp.protoss_wall_buildings[0],
+                5: buildings[1],
+                13: buildings[0],
             }
             location = structures.get(self.build_order_step, None)
             if (not location):
